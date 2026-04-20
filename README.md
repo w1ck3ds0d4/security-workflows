@@ -1,26 +1,34 @@
 # SecureCheck
 
-Reusable GitHub Actions workflow - runs a security scanner stack on every push and PR, posts a single summary to Discord.
+Reusable GitHub Actions workflow that runs a multi-scanner security pipeline on every push and pull request and posts a single, severity-coloured summary to Discord.
 
 ---
 
 ## Features
 
-- **One workflow, many repos** - thin caller in each consumer repo, scanner stack lives here; edit once, updates everywhere
-- **Gitleaks** - hardcoded secrets in the working tree and history, runs on every push and PR
-- **Semgrep** - pattern-based SAST using the `auto` ruleset
-- **Trivy** - dependency CVEs and IaC / config misconfigurations
-- **Claude review (optional)** - Sonnet 4.6 reviews the PR diff for logic bugs scanners miss; gated on `ANTHROPIC_API_KEY`, skipped silently when not set
-- **Single Discord embed per run** - severity-colored, deduplicated, with direct links to the workflow run and pull request
-- **Heartbeat on pull requests** - an embed is posted even on clean PR runs so reviewers can see the bot ran
-- **Silent on clean pushes** - no noise for green `main` commits
-- **Raw reports archived** - every run uploads the raw JSON for each scanner as an artifact (14-day retention)
+- **Centralised scanner stack** - scanners and rules live in one repo; each consumer repo contains a thin caller, so updates propagate without touching every project
+- **Gitleaks** - hardcoded secrets in the working tree and history, on every push and PR
+- **Semgrep** - pattern-based SAST using the curated `auto` ruleset
+- **Trivy** - dependency CVEs and IaC / configuration misconfigurations
+- **Optional Claude review** - Claude Sonnet 4.6 reviews the PR diff for logic issues scanners miss; gated on `ANTHROPIC_API_KEY` and skipped silently when the secret is not set
+- **Single Discord embed per run** - severity colouring, per-scanner counts, direct links to the workflow run and pull request
+- **Pull-request heartbeat** - an embed is posted for every PR run, including clean ones, so reviewers can see the bot executed
+- **Silent on clean pushes** - no Discord noise for green `main` commits
+- **Archived raw reports** - each run uploads per-scanner JSON as a workflow artifact with 14-day retention
 
 ---
 
 ## Install
 
-Drop a thin caller workflow into the consumer repo at `.github/workflows/security.yml`:
+### Prerequisites
+
+- A GitHub repository you want to scan, with Actions enabled
+- A Discord channel with an **incoming webhook** (channel settings, Integrations, Webhooks, New Webhook, Copy Webhook URL)
+- *Optional:* an Anthropic API key if you want the Claude review step to run on pull requests
+
+### Add the caller workflow
+
+Create `.github/workflows/security.yml` in the consumer repo:
 
 ```yaml
 name: Security Scan
@@ -39,22 +47,20 @@ jobs:
     secrets: inherit
 ```
 
-Set the required secret on the consumer repo:
+### Configure secrets
 
-- `DISCORD_WEBHOOK_URL` - incoming webhook for the channel the bot should post to. Create under **Discord channel -> Integrations -> Webhooks -> New Webhook -> Copy Webhook URL**.
+Set the webhook secret on the consumer repo:
 
-Optional secret for the Claude review step:
+```bash
+gh secret set DISCORD_WEBHOOK_URL --repo <owner>/<repo>
+```
 
-- `ANTHROPIC_API_KEY` - when present, the Claude review step runs on PRs. When absent, the step is skipped with no error.
+### Enable the optional Claude review
 
-The reusable workflow accepts two optional inputs:
+Add the Anthropic key to the consumer repo's secrets. The workflow detects the secret at runtime and skips the step when absent, so nothing else needs to change.
 
-```yaml
-    uses: w1ck3ds0d4/SecureCheck/.github/workflows/scan.yml@main
-    secrets: inherit
-    with:
-      node_version: '22'
-      python_version: '3.12'
+```bash
+gh secret set ANTHROPIC_API_KEY --repo <owner>/<repo>
 ```
 
 ---
@@ -67,9 +73,9 @@ Scans run, findings are tallied, and the Discord notifier stays silent unless at
 
 ### Pull request
 
-Same scan pipeline runs, but the embed is always posted - green when clean, colored when not - so the reviewer has a clear signal before approving. Claude review (if enabled) runs only on pull requests; pushes skip it to save API calls.
+The same scan pipeline runs, and the embed is always posted (green when clean, coloured when not) so the reviewer has a clear signal before approving. The optional Claude review runs only on pull requests; pushes skip it to save API calls.
 
-### Severity colouring
+### Severity colour
 
 | State | Colour |
 |---|---|
@@ -80,11 +86,25 @@ Same scan pipeline runs, but the embed is always posted - green when clean, colo
 
 ### Claude review findings
 
-When the optional Claude step runs and reports critical or high-severity issues, the first five are inlined directly in the Discord embed with file, line, and a one-sentence explanation of the exploit path. Lower-severity Claude findings only appear in the run artifact.
+When the optional Claude step runs and reports critical or high severity issues, the first five are inlined in the Discord embed with file, line, and a one-sentence explanation of the exploit path. Lower-severity findings only appear in the run artifact.
 
 ### Raw reports
 
-Every run uploads a `security-reports` artifact containing the raw JSON from each scanner (gitleaks, semgrep, trivy, claude) with 14-day retention. Useful when the embed count is non-zero and you want the full picture without re-running the scan locally.
+Every run uploads a `security-reports` artifact containing the raw JSON from each scanner (gitleaks, semgrep, trivy, claude) with 14-day retention. Useful when the embed count is non-zero and you want the full picture without re-running locally.
+
+### Overriding defaults
+
+The reusable workflow accepts two optional inputs:
+
+```yaml
+jobs:
+  scan:
+    uses: w1ck3ds0d4/SecureCheck/.github/workflows/scan.yml@main
+    secrets: inherit
+    with:
+      node_version: '22'
+      python_version: '3.12'
+```
 
 ---
 
@@ -96,7 +116,7 @@ SecureCheck/
     workflows/
       scan.yml                    Reusable workflow; checkout, scanners, notify, upload
   scripts/
-    notify.mjs                    Builds the Discord embed from scanner counts + posts it
+    notify.mjs                    Builds the Discord embed from scanner counts and posts it
     claude-review.mjs             Sends the PR diff to Claude and emits structured findings
   package.json                    @anthropic-ai/sdk dependency for the optional Claude step
   LICENSE                         AGPL v3

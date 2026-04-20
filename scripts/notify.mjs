@@ -58,7 +58,7 @@ if (severeClaude.length > 0) {
     name: 'Claude high-severity',
     value: severeClaude
       .slice(0, 5)
-      .map(f => `• \`${f.file ?? '?'}\`${f.line ? `:${f.line}` : ''} — ${f.title}`)
+      .map(f => `- \`${f.file ?? '?'}\`${f.line ? `:${f.line}` : ''} - ${f.title}`)
       .join('\n'),
     inline: false,
   });
@@ -75,7 +75,7 @@ fields.push({
 
 const footer = total === 0
   ? 'All clear'
-  : `${total} finding${total === 1 ? '' : 's'} — review the run for details`;
+  : `${total} finding${total === 1 ? '' : 's'} - review the run for details`;
 
 const embed = {
   title: title.slice(0, 256),
