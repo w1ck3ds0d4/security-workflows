@@ -19,7 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITLEAKS_VERSION: 8.24.3
-      TRIVY_VERSION: 0.57.0
     steps:
       - name: Checkout consumer repo
         uses: actions/checkout@v6
@@ -61,18 +60,24 @@ jobs:
         id: semgrep
         run: |
           python -m pip install --quiet semgrep
-          semgrep --config=auto --json --output=/tmp/semgrep.json --error=false --quiet . || true
+          semgrep --config=auto --json --output=/tmp/semgrep.json --quiet . || true
           COUNT=$(jq '.results | length' /tmp/semgrep.json 2>/dev/null || echo 0)
           echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
           echo "Semgrep findings: ${COUNT}"
 
-      - name: Install and run Trivy
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          format: json
+          output: /tmp/trivy.json
+          exit-code: '0'
+          scanners: vuln,misconfig
+          ignore-unfixed: false
+
+      - name: Count Trivy findings
         id: trivy
         run: |
-          set -euo pipefail
-          curl -sSfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | tar -xz -C /tmp
-          sudo mv /tmp/trivy /usr/local/bin/
-          trivy fs --format json --output /tmp/trivy.json --quiet --scanners vuln,misconfig --exit-code 0 . || true
           COUNT=$(jq '[.Results[]?.Vulnerabilities // [], .Results[]?.Misconfigurations // [] | length] | add // 0' /tmp/trivy.json 2>/dev/null || echo 0)
           echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
           echo "Trivy findings: ${COUNT}"
