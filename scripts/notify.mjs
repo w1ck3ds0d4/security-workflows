@@ -1,5 +1,5 @@
 // Post a single Discord embed summarizing scanner results for one workflow run.
-// Clean pushes stay silent; clean PRs get a short heartbeat so approvers can see the bot ran.
+// Posts on every run so each repo's scanner activity is visible in the channel.
 
 import fs from 'node:fs';
 
@@ -20,12 +20,6 @@ const counts = {
 const total = counts.gitleaks + counts.semgrep + counts.trivy + counts.claude;
 const isPR = env.EVENT_NAME === 'pull_request';
 const claudeRan = env.CLAUDE_ENABLED === 'true';
-
-// Silent on clean pushes. PRs always get a heartbeat.
-if (total === 0 && !isPR) {
-  console.log('Clean push; no Discord message.');
-  process.exit(0);
-}
 
 const color =
   total === 0 ? 0x2ecc71
