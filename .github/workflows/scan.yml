@@ -25,11 +25,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Checkout security-workflows
+      - name: Checkout SecureCheck
         uses: actions/checkout@v6
         with:
-          repository: w1ck3ds0d4/security-workflows
-          path: .sec-workflows
+          repository: w1ck3ds0d4/SecureCheck
+          path: .securecheck
           fetch-depth: 1
 
       - name: Set up Node.js
@@ -94,10 +94,10 @@ jobs:
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          cd .sec-workflows
+          cd .securecheck
           npm install --silent --no-audit --no-fund
           cd ..
-          node .sec-workflows/scripts/claude-review.mjs > /tmp/claude.json
+          node .securecheck/scripts/claude-review.mjs > /tmp/claude.json
           COUNT=$(jq 'length' /tmp/claude.json 2>/dev/null || echo 0)
           echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
           echo "enabled=true" >> "$GITHUB_OUTPUT"
@@ -126,7 +126,7 @@ jobs:
             echo "DISCORD_WEBHOOK_URL not set; skipping notification"
             exit 0
           fi
-          node .sec-workflows/scripts/notify.mjs
+          node .securecheck/scripts/notify.mjs
 
       - name: Upload raw reports
         if: always()
